@@ -83,6 +83,7 @@ def get_rel_pos(q_size, k_size, rel_pos):
         )
         rel_pos_resized = rel_pos_resized.reshape(-1, max_rel_dist).permute(1, 0)
     else:
+        assert False
         rel_pos_resized = rel_pos
 
     # Scale the coords with short length if shapes for q and k are different.

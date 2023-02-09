@@ -56,7 +56,7 @@ class FasterRCNN(nn.Module):
         instances = predictions['instances']
         return instances.pred_boxes.tensor.floor().int(), instances.scores, instances.pred_classes.int()
 
-m = FasterRCNN(predictor.model).cuda()
+m = FasterRCNN(predictor.model).eval().cuda()
 
 with torch.no_grad():
     boxes, scores, labels = m(image_byte, height, width)
@@ -65,12 +65,13 @@ onnxfile = "/repos/output/grit.onnx"
 targets = ["bbox", "scores", "labels"]
 dynamic_axes = {'image': {2 : 'height', 3: 'width'}}
 dynamic_axes.update({t: {0: 'i'} for t in targets})
-torch.onnx.export(m, (image_byte, height, width), onnxfile,
-                  verbose=True,
-                  input_names=['image', 'height', 'width'],
-                  dynamic_axes=dynamic_axes,
-                  output_names=targets,
-                  opset_version=11)
+with torch.no_grad():
+    torch.onnx.export(m, (image_byte, height, width), onnxfile,
+                    verbose=True,
+                    input_names=['image', 'height', 'width'],
+                    dynamic_axes=dynamic_axes,
+                    output_names=targets,
+                    opset_version=11)
 
 def optimize_graph(onnxfile, onnxfile_optimized=None, providers=None):
     if providers is None:

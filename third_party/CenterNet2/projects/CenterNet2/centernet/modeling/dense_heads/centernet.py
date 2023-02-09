@@ -705,21 +705,19 @@ class CenterNet(nn.Module):
             per_pre_nms_top_n = pre_nms_top_n[i] # 1
 
             if not torch._C._get_tracing_state():
-	            if per_candidate_inds.sum().item() > per_pre_nms_top_n.item():
-	                per_box_cls, top_k_indices = \
-	                    per_box_cls.topk(per_pre_nms_top_n, sorted=False)
-	                per_class = per_class[top_k_indices]
-	                per_box_regression = per_box_regression[top_k_indices]
-	                per_grids = per_grids[top_k_indices]
+                if per_candidate_inds.sum().item() > per_pre_nms_top_n.item():
+                    per_box_cls, top_k_indices = per_box_cls.topk(per_pre_nms_top_n, sorted=False)
+                    per_class = per_class[top_k_indices]
+                    per_box_regression = per_box_regression[top_k_indices]
+                    per_grids = per_grids[top_k_indices]
             else:
-	            n = per_candidate_nonzeros.shape[0]
-	            assert per_candidate_inds.sum() == n
-	            per_box_cls, per_class, per_box_regression, per_grids = _cond_topk(
-	                n, per_pre_nms_top_n, 
-	                per_box_cls, per_class, per_box_regression, per_grids
-	            )
+                n = per_candidate_nonzeros.shape[0]
+                assert per_candidate_inds.sum() == n
+                per_box_cls, per_class, per_box_regression, per_grids = _cond_topk(
+                    n, per_pre_nms_top_n, 
+                    per_box_cls, per_class, per_box_regression, per_grids
+                )
             
-
             detections = torch.stack([
                 per_grids[:, 0] - per_box_regression[:, 0],
                 per_grids[:, 1] - per_box_regression[:, 1],
