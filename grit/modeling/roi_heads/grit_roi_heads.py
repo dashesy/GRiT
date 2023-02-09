@@ -171,7 +171,7 @@ class GRiTROIHeadsAndTextDecoder(CascadeROIHeads):
                     proposals = self._match_and_label_boxes_GRiT(
                         proposals, k, targets)
                     proposals = self.check_if_all_background(proposals, targets, k)
-            predictions = self._run_stage(features, proposals, k)
+            predictions = self._run_stage(features, proposals, k, training=self.training)
             prev_pred_boxes = self.box_predictor[k].predict_boxes(
                 (predictions[0], predictions[1]), proposals)
             head_outputs.append((self.box_predictor[k], predictions, proposals))
@@ -470,9 +470,10 @@ class GRiTROIHeadsAndTextDecoder(CascadeROIHeads):
             proposals.append(prop)
         return proposals
 
-    def _run_stage(self, features, proposals, stage):
+    def _run_stage(self, features, proposals, stage, training=False):
         pool_boxes = [x.proposal_boxes for x in proposals]
         box_features = self.box_pooler(features, pool_boxes)
-        box_features = _ScaleGradient.apply(box_features, 1.0 / self.num_cascade_stages)
+        if training:
+            box_features = _ScaleGradient.apply(box_features, 1.0 / self.num_cascade_stages)
         box_features = self.box_head[stage](box_features)
         return self.box_predictor[stage](box_features)

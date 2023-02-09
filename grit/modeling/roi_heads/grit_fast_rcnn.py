@@ -109,8 +109,10 @@ class GRiTFastRCNNOutputLayers(FastRCNNOutputLayers):
 
     def predict_probs(self, predictions, proposals):
         scores = predictions[0]
-        num_inst_per_image = [len(p) for p in proposals]
         probs = F.softmax(scores, dim=-1)
+        if len(proposals) == 1:
+            return (probs,)
+        num_inst_per_image = [len(p) for p in proposals]
         return probs.split(num_inst_per_image, dim=0)
 
     def forward(self, x):
