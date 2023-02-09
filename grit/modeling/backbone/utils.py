@@ -141,7 +141,13 @@ def get_abs_pos(abs_pos, has_cls_token, hw):
     if has_cls_token:
         abs_pos = abs_pos[:, 1:]
     xy_num = abs_pos.shape[1]
-    size = int(math.sqrt(xy_num))
+
+    if not isinstance(xy_num, torch.Tensor):
+        xy_num = torch.tensor(xy_num).to(abs_pos.device)
+    xy_num = xy_num.float()
+
+    # size = int(math.sqrt(xy_num))
+    size = torch.sqrt(xy_num).floor().long()
     assert size * size == xy_num
 
     if size != h or size != w:
@@ -154,7 +160,6 @@ def get_abs_pos(abs_pos, has_cls_token, hw):
 
         return new_abs_pos.permute(0, 2, 3, 1)
     else:
-        assert False
         return abs_pos.reshape(1, h, w, -1)
 
 
