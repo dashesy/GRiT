@@ -119,6 +119,7 @@ height2, width2 = image2.shape[:2]
 image2_byte = predictor.aug.get_transform(image2).apply_image(image2).transpose(2, 0, 1)
 image2_byte = torch.as_tensor(image2_byte).unsqueeze(0).cuda()
 
+# try with h > w
 t0 = time.time()
 boxes_ort2, scores_ort2, labels_ort2 = sess.run(targets, {
     'image': image2_byte.cpu().numpy(),
@@ -129,5 +130,6 @@ print(time.time() - t0)
 instances = Instances((height2, width2))
 instances.pred_boxes = torch.as_tensor(boxes_ort2)
 instances.scores = torch.as_tensor(scores_ort2)
+visualizer = Visualizer(image2)
 vis_output = visualizer.draw_instance_predictions(predictions=instances)
 vis_output.save("visualization/000000497861_ort.jpg")
