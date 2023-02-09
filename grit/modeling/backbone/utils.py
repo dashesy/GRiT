@@ -28,7 +28,7 @@ def window_partition(x, window_size):
 
     pad_h = (window_size - H % window_size) % window_size
     pad_w = (window_size - W % window_size) % window_size
-    if pad_h > 0 or pad_w > 0:
+    if torch._C._get_tracing_state() or pad_h > 0 or pad_w > 0:
         x = F.pad(x, (0, 0, 0, pad_w, 0, pad_h))
     Hp, Wp = H + pad_h, W + pad_w
 
@@ -55,7 +55,7 @@ def window_unpartition(windows, window_size, pad_hw, hw):
     x = windows.view(B, Hp // window_size, Wp // window_size, window_size, window_size, -1)
     x = x.permute(0, 1, 3, 2, 4, 5).contiguous().view(B, Hp, Wp, -1)
 
-    if Hp > H or Wp > W:
+    if torch._C._get_tracing_state() or Hp > H or Wp > W:
         x = x[:, :H, :W, :].contiguous()
     return x
 
@@ -154,6 +154,7 @@ def get_abs_pos(abs_pos, has_cls_token, hw):
 
         return new_abs_pos.permute(0, 2, 3, 1)
     else:
+        assert False
         return abs_pos.reshape(1, h, w, -1)
 
 
