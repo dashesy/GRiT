@@ -14,7 +14,10 @@ class Visualizer_GRiT(Visualizer):
         boxes = predictions.pred_boxes if predictions.has("pred_boxes") else None
         scores = predictions.scores if predictions.has("scores") else None
         classes = predictions.pred_classes.tolist() if predictions.has("pred_classes") else None
-        object_description = predictions.pred_object_descriptions.data
+        try:
+            object_description = predictions.pred_object_descriptions.data
+        except:
+            object_description = None
         # uncomment to output scores in visualized images
         # object_description = [c + '|' + str(round(s.item(), 1)) for c, s in zip(object_description, scores)]
 

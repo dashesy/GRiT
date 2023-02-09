@@ -150,7 +150,7 @@ def get_abs_pos(abs_pos, has_cls_token, hw):
     size = torch.sqrt(xy_num).floor().long()
     assert size * size == xy_num
 
-    if size != h or size != w:
+    if torch._C._get_tracing_state() or size != h or size != w:
         new_abs_pos = F.interpolate(
             abs_pos.reshape(1, size, size, -1).permute(0, 3, 1, 2),
             size=(h, w),

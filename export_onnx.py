@@ -38,7 +38,7 @@ height, width = image.shape[:2]
 image_byte = predictor.aug.get_transform(image).apply_image(image).transpose(2, 0, 1)
 image_byte = torch.as_tensor(image_byte).unsqueeze(0).cuda()
 
-predictions = predictor(image)
+# predictions = predictor(image)
 
 class FasterRCNN(nn.Module):
     """Wrap FasterRCNN and return tensors
@@ -71,3 +71,31 @@ torch.onnx.export(m, (image_byte, height, width), onnxfile,
                   dynamic_axes=dynamic_axes,
                   output_names=targets,
                   opset_version=11)
+
+def optimize_graph(onnxfile, onnxfile_optimized=None, providers=None):
+    if providers is None:
+        providers = 'CPUExecutionProvider'
+    import onnxruntime as rt
+
+    if not onnxfile_optimized:
+        onnxfile_optimized = onnxfile[:-5] + "_optimized.onnx"  # ONNX optimizer is broken, using ORT to optimzie
+    sess_options = rt.SessionOptions()
+    sess_options.graph_optimization_level = rt.GraphOptimizationLevel.ORT_ENABLE_BASIC
+    sess_options.optimized_model_filepath = onnxfile_optimized
+    _ = rt.InferenceSession(onnxfile, sess_options, providers=[providers])
+    return onnxfile_optimized
+
+optimize_graph(onnxfile)
+
+import onnxruntime as rt
+
+onnxfile_optimized =  onnxfile[:-5] + "_optimized.onnx"
+# sess = rt.InferenceSession(onnxfile, providers=['CPUExecutionProvider'])
+sess = rt.InferenceSession(onnxfile, providers=['CUDAExecutionProvider'])
+t0 = time.time()
+results = sess.run(targets, {
+    'image': image_byte.cpu().numpy(),
+    'height': torch.as_tensor(height).numpy(),
+    'width': torch.as_tensor(width).numpy(),
+})
+print(time.time() - t0)

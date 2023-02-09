@@ -7,6 +7,7 @@ from detectron2.structures import Boxes, Instances, pairwise_iou
 from detectron2.utils.events import get_event_storage
 
 from detectron2.modeling.box_regression import Box2BoxTransform
+from detectron2.modeling.roi_heads.fast_rcnn import fast_rcnn_inference
 from detectron2.modeling.roi_heads.roi_heads import ROI_HEADS_REGISTRY, StandardROIHeads
 from detectron2.modeling.roi_heads.cascade_rcnn import CascadeROIHeads, _ScaleGradient
 from detectron2.modeling.poolers import ROIPooler
@@ -226,6 +227,18 @@ class GRiTROIHeadsAndTextDecoder(CascadeROIHeads):
             boxes = predictor.predict_boxes(
                 (predictions[0], predictions[1]), proposals)
             assert len(boxes) == 1
+            if torch._C._get_tracing_state():
+                # only export the object proposals
+                pred_instances, _ = fast_rcnn_inference(
+                    boxes,
+                    scores,
+                    image_sizes,
+                    predictor.test_score_thresh,
+                    predictor.test_nms_thresh,
+                    predictor.test_topk_per_image,
+                )
+                return pred_instances
+            
             pred_instances, _ = self.fast_rcnn_inference_GRiT(
                 boxes,
                 scores,
