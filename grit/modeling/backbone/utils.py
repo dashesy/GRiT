@@ -72,6 +72,7 @@ def get_rel_pos(q_size, k_size, rel_pos):
     Returns:
         Extracted positional embeddings according to relative positions.
     """
+    print(q_size, k_size, type(q_size), type(k_size))
     max_rel_dist = int(2 * max(q_size, k_size) - 1)
     # Interpolate rel pos if needed.
     if rel_pos.shape[0] != max_rel_dist:
@@ -83,7 +84,6 @@ def get_rel_pos(q_size, k_size, rel_pos):
         )
         rel_pos_resized = rel_pos_resized.reshape(-1, max_rel_dist).permute(1, 0)
     else:
-        assert False
         rel_pos_resized = rel_pos
 
     # Scale the coords with short length if shapes for q and k are different.
