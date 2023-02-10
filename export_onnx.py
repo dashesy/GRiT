@@ -71,7 +71,7 @@ with torch.no_grad():
                     input_names=['image', 'height', 'width'],
                     dynamic_axes=dynamic_axes,
                     output_names=targets,
-                    opset_version=11)
+                    opset_version=14)
 
 def optimize_graph(onnxfile, onnxfile_optimized=None, providers=None):
     if providers is None:

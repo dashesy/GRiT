@@ -461,7 +461,7 @@ def build_vit_fpn_backbone(cfg, input_shape: ShapeSpec):
         ],
         residual_block_indexes=[],
         use_act_checkpoint=cfg.USE_ACT_CHECKPOINT,
-        use_rel_pos=False,
+        use_rel_pos=True,
         out_feature="last_feat",)
 
     out_channels = cfg.MODEL.FPN.OUT_CHANNELS

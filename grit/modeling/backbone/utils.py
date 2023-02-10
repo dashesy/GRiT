@@ -4,6 +4,7 @@ import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch import Tensor
 
 __all__ = [
     "window_partition",
@@ -59,6 +60,22 @@ def window_unpartition(windows, window_size, pad_hw, hw):
         x = x[:, :H, :W, :].contiguous()
     return x
 
+@torch.jit._script_if_tracing
+def _cond_get_rel_pos(
+    n: Tensor,
+    max_rel_dist: Tensor,
+    rel_pos: Tensor,
+) -> Tensor:
+    if n != max_rel_dist:
+        rel_pos_resized = F.interpolate(
+            rel_pos.reshape(1, rel_pos.shape[0], -1).permute(0, 2, 1),
+            size=max_rel_dist,
+            mode="linear",
+        )
+        rel_pos_resized = rel_pos_resized.reshape(-1, max_rel_dist).permute(1, 0)
+        return rel_pos_resized
+    return rel_pos
+
 
 def get_rel_pos(q_size, k_size, rel_pos):
     """
@@ -72,24 +89,38 @@ def get_rel_pos(q_size, k_size, rel_pos):
     Returns:
         Extracted positional embeddings according to relative positions.
     """
-    print(q_size, k_size, type(q_size), type(k_size))
-    max_rel_dist = int(2 * max(q_size, k_size) - 1)
+    assert q_size == k_size
+    max_rel_dist_old = int(2 * max(q_size, k_size) - 1)
+    print(q_size, k_size, max_rel_dist_old, rel_pos.shape)
+    if not isinstance(q_size, torch.Tensor):
+        q_size = torch.tensor(q_size).to(rel_pos.device)
+    if not isinstance(k_size, torch.Tensor):
+        k_size = torch.tensor(k_size).to(rel_pos.device)
+    max_rel_dist = 2 * q_size - 1
+    assert max_rel_dist == max_rel_dist_old, f"{max_rel_dist} != {max_rel_dist_old}"
+    # n = rel_pos.shape[0]
     # Interpolate rel pos if needed.
-    if rel_pos.shape[0] != max_rel_dist:
-        # Interpolate rel pos.
-        rel_pos_resized = F.interpolate(
-            rel_pos.reshape(1, rel_pos.shape[0], -1).permute(0, 2, 1),
-            size=max_rel_dist,
-            mode="linear",
-        )
-        rel_pos_resized = rel_pos_resized.reshape(-1, max_rel_dist).permute(1, 0)
-    else:
-        rel_pos_resized = rel_pos
+    rel_pos_resized = _cond_get_rel_pos(rel_pos.shape[0], max_rel_dist, rel_pos)
+    # if torch._C._get_tracing_state() or rel_pos.shape[0] != max_rel_dist:
+    #     # Interpolate rel pos.
+    #     rel_pos_resized = F.interpolate(
+    #         rel_pos.reshape(1, rel_pos.shape[0], -1).permute(0, 2, 1),
+    #         size=max_rel_dist,
+    #         mode="linear",
+    #     )
+    #     rel_pos_resized = rel_pos_resized.reshape(-1, max_rel_dist).permute(1, 0)
+    # else:
+    #     rel_pos_resized = rel_pos
 
     # Scale the coords with short length if shapes for q and k are different.
-    q_coords = torch.arange(q_size)[:, None] * max(k_size / q_size, 1.0)
-    k_coords = torch.arange(k_size)[None, :] * max(q_size / k_size, 1.0)
-    relative_coords = (q_coords - k_coords) + (k_size - 1) * max(q_size / k_size, 1.0)
+    if torch._C._get_tracing_state():
+        q_coords = torch.arange(q_size).to(rel_pos.device)[:, None]
+        k_coords = torch.arange(k_size).to(rel_pos.device)[None, :]
+        relative_coords = (q_coords - k_coords) + (k_size - 1)
+    else:
+        q_coords = torch.arange(q_size).to(rel_pos.device)[:, None] * max(k_size / q_size, 1.0)
+        k_coords = torch.arange(k_size).to(rel_pos.device)[None, :] * max(q_size / k_size, 1.0)
+        relative_coords = (q_coords - k_coords) + (k_size - 1) * max(q_size / k_size, 1.0)
 
     return rel_pos_resized[relative_coords.long()]
 
@@ -161,6 +192,7 @@ def get_abs_pos(abs_pos, has_cls_token, hw):
 
         return new_abs_pos.permute(0, 2, 3, 1)
     else:
+        assert False
         return abs_pos.reshape(1, h, w, -1)
 
 
