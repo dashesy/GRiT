@@ -4,6 +4,7 @@ import cv2
 import sys
 import torch
 import torch.nn as nn
+import onnxruntime as rt
 
 from detectron2.engine import DefaultPredictor
 from detectron2.config import get_cfg
@@ -43,40 +44,29 @@ image_byte = torch.as_tensor(image_byte).unsqueeze(0).cuda()
 class FasterRCNN(nn.Module):
     """Wrap FasterRCNN and return tensors
     """
-    def __init__(self, net):
+    def __init__(self, net, half=False):
         super(FasterRCNN, self).__init__()
         self.model = net
+        self._half = half
 
     def forward(self, x, height, width):
         if x.dim() != 3:
             assert x.shape[0] == 1 and x.dim() == 4
             x = x.squeeze(0)
-        inputs = {"image": x.float(), "height": height, "width": width}
+        inputs = {"image": x.half() if self._half else x.float(), "height": height, "width": width}
         predictions = self.model([inputs])[0]
         instances = predictions['instances']
-        return instances.pred_boxes.tensor.floor().int(), instances.scores, instances.pred_classes.int()
+        return instances.pred_boxes.tensor.floor().int(), instances.scores.float(), instances.pred_classes.int()
 
-m = FasterRCNN(predictor.model).eval().cuda()
+# m = FasterRCNN(predictor.model).cuda().eval()
+m = FasterRCNN(predictor.model, half=True).half().cuda().eval()
 
 with torch.no_grad():
     boxes, scores, labels = m(image_byte, height, width)
 
-onnxfile = "/repos/output/grit.onnx"
-targets = ["bbox", "scores", "labels"]
-dynamic_axes = {'image': {2 : 'height', 3: 'width'}}
-dynamic_axes.update({t: {0: 'i'} for t in targets})
-with torch.no_grad():
-    torch.onnx.export(m, (image_byte, height, width), onnxfile,
-                    verbose=True,
-                    input_names=['image', 'height', 'width'],
-                    dynamic_axes=dynamic_axes,
-                    output_names=targets,
-                    opset_version=14)
-
 def optimize_graph(onnxfile, onnxfile_optimized=None, providers=None):
     if providers is None:
-        providers = 'CPUExecutionProvider'
-    import onnxruntime as rt
+        providers = 'CUDAExecutionProvider'
 
     if not onnxfile_optimized:
         onnxfile_optimized = onnxfile[:-5] + "_optimized.onnx"  # ONNX optimizer is broken, using ORT to optimzie
@@ -86,13 +76,24 @@ def optimize_graph(onnxfile, onnxfile_optimized=None, providers=None):
     _ = rt.InferenceSession(onnxfile, sess_options, providers=[providers])
     return onnxfile_optimized
 
-optimize_graph(onnxfile)
-
-import onnxruntime as rt
-
+onnxfile = "/repos/output/grit.onnx"
 onnxfile_optimized =  onnxfile[:-5] + "_optimized.onnx"
+targets = ["bbox", "scores", "labels"]
+if True:
+    dynamic_axes = {'image': {2 : 'height', 3: 'width'}}
+    dynamic_axes.update({t: {0: 'i'} for t in targets})
+    with torch.no_grad():
+        torch.onnx.export(m, (image_byte, height, width), onnxfile,
+                        verbose=True,
+                        input_names=['image', 'height', 'width'],
+                        dynamic_axes=dynamic_axes,
+                        output_names=targets,
+                        opset_version=14)
+
+    optimize_graph(onnxfile)
+
 # sess = rt.InferenceSession(onnxfile, providers=['CPUExecutionProvider'])
-sess = rt.InferenceSession(onnxfile, providers=['CUDAExecutionProvider'])
+sess = rt.InferenceSession(onnxfile_optimized, providers=['CUDAExecutionProvider'])
 t0 = time.time()
 boxes_ort, scores_ort, labels_ort = sess.run(targets, {
     'image': image_byte.cpu().numpy(),

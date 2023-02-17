@@ -23,8 +23,9 @@ def ml_nms(boxlist, nms_thresh, max_proposals=-1,
         labels = boxlist.proposal_boxes.tensor.new_zeros(
             len(boxlist.proposal_boxes.tensor))
     scores = boxlist.scores
-    
-    keep = batched_nms(boxes, scores, labels, nms_thresh)
+
+    # TODO: NMS ONNX cannot export with float16, so we cast to float32 for now
+    keep = batched_nms(boxes.float(), scores.float(), labels, nms_thresh)
     if max_proposals > 0:
         keep = keep[: max_proposals]
     boxlist = boxlist[keep]

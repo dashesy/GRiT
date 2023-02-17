@@ -29,6 +29,8 @@ def window_partition(x, window_size):
 
     pad_h = (window_size - H % window_size) % window_size
     pad_w = (window_size - W % window_size) % window_size
+    # pad_h = H - (H // window_size) * window_size
+    # pad_w = W - (W // window_size) * window_size
     if torch._C._get_tracing_state() or pad_h > 0 or pad_w > 0:
         x = F.pad(x, (0, 0, 0, pad_w, 0, pad_h))
     Hp, Wp = H + pad_h, W + pad_w
@@ -91,10 +93,12 @@ def get_rel_pos(q_size, k_size, rel_pos):
     """
     assert q_size == k_size
     max_rel_dist_old = int(2 * max(q_size, k_size) - 1)
-    print(q_size, k_size, max_rel_dist_old, rel_pos.shape)
+    # print(q_size, k_size, max_rel_dist_old, rel_pos.shape)
     if not isinstance(q_size, torch.Tensor):
+        assert not torch._C._get_tracing_state()
         q_size = torch.tensor(q_size).to(rel_pos.device)
     if not isinstance(k_size, torch.Tensor):
+        assert not torch._C._get_tracing_state()
         k_size = torch.tensor(k_size).to(rel_pos.device)
     max_rel_dist = 2 * q_size - 1
     assert max_rel_dist == max_rel_dist_old, f"{max_rel_dist} != {max_rel_dist_old}"
@@ -114,8 +118,8 @@ def get_rel_pos(q_size, k_size, rel_pos):
 
     # Scale the coords with short length if shapes for q and k are different.
     if torch._C._get_tracing_state():
-        q_coords = torch.arange(q_size).to(rel_pos.device)[:, None]
-        k_coords = torch.arange(k_size).to(rel_pos.device)[None, :]
+        q_coords = torch.arange(q_size, device=rel_pos.device).view(-1,1)
+        k_coords = torch.arange(k_size, device=rel_pos.device).view(1,-1)
         relative_coords = (q_coords - k_coords) + (k_size - 1)
     else:
         q_coords = torch.arange(q_size).to(rel_pos.device)[:, None] * max(k_size / q_size, 1.0)
