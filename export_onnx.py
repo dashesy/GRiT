@@ -38,6 +38,8 @@ if predictor.input_format == "RGB":
 height, width = image.shape[:2]
 image_byte = predictor.aug.get_transform(image).apply_image(image).transpose(2, 0, 1)
 image_byte = torch.as_tensor(image_byte).unsqueeze(0).cuda()
+height = torch.as_tensor(height).cuda()
+width = torch.as_tensor(width).cuda()
 
 # predictions = predictor(image)
 
@@ -97,8 +99,8 @@ sess = rt.InferenceSession(onnxfile_optimized, providers=['CUDAExecutionProvider
 t0 = time.time()
 boxes_ort, scores_ort, labels_ort = sess.run(targets, {
     'image': image_byte.cpu().numpy(),
-    'height': torch.as_tensor(height).numpy(),
-    'width': torch.as_tensor(width).numpy(),
+    'height': height.cpu().numpy(),
+    'width': width.cpu().numpy(),
 })
 print(time.time() - t0)
 
@@ -119,13 +121,15 @@ if predictor.input_format == "RGB":
 height2, width2 = image2.shape[:2]
 image2_byte = predictor.aug.get_transform(image2).apply_image(image2).transpose(2, 0, 1)
 image2_byte = torch.as_tensor(image2_byte).unsqueeze(0).cuda()
+height2 = torch.as_tensor(height2).cuda()
+width2 = torch.as_tensor(width2).cuda()
 
 # try with h > w
 t0 = time.time()
 boxes_ort2, scores_ort2, labels_ort2 = sess.run(targets, {
     'image': image2_byte.cpu().numpy(),
-    'height': torch.as_tensor(height2).numpy(),
-    'width': torch.as_tensor(width2).numpy(),
+    'height': height2.cpu().numpy(),
+    'width': width2.cpu().numpy(),
 })
 print(time.time() - t0)
 instances = Instances((height2, width2))

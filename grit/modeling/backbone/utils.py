@@ -70,7 +70,7 @@ def _cond_get_rel_pos(
 ) -> Tensor:
     if n != max_rel_dist:
         rel_pos_resized = F.interpolate(
-            rel_pos.reshape(1, rel_pos.shape[0], -1).permute(0, 2, 1),
+            rel_pos.reshape(1, n, -1).permute(0, 2, 1),
             size=max_rel_dist,
             mode="linear",
         )
