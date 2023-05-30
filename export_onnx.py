@@ -21,6 +21,10 @@ cfg.merge_from_list(["MODEL.WEIGHTS", "models/grit_b_densecap_objectdet.pth"])
 # Set score_threshold for builtin models
 cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.5
 cfg.MODEL.PANOPTIC_FPN.COMBINE.INSTANCES_CONFIDENCE_THRESH = 0.5
+cfg.MODEL.MASK_ON = False
+cfg.MODEL.CENTERNET.PRE_NMS_TOPK_TEST = 256
+cfg.MODEL.CENTERNET.POST_NMS_TOPK_TEST = 16
+cfg.TEST.DETECTIONS_PER_IMAGE = 16
 cfg.MODEL.TEST_TASK = "ObjectDet"
 cfg.MODEL.BEAM_SIZE = 1
 cfg.MODEL.ROI_HEADS.SOFT_NMS_ENABLED = False
@@ -93,6 +97,7 @@ if True:
                         opset_version=14)
 
     optimize_graph(onnxfile)
+    # optimize_graph(onnxfile, providers = 'CPUExecutionProvider')
 
 # sess = rt.InferenceSession(onnxfile, providers=['CPUExecutionProvider'])
 sess = rt.InferenceSession(onnxfile_optimized, providers=['CUDAExecutionProvider'])
