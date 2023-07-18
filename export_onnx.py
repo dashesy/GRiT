@@ -42,6 +42,7 @@ if predictor.input_format == "RGB":
 height, width = image.shape[:2]
 image_byte = predictor.aug.get_transform(image).apply_image(image).transpose(2, 0, 1)
 image_byte = torch.as_tensor(image_byte).unsqueeze(0).cuda()
+hw = torch.as_tensor([height, width]).cuda()
 height = torch.as_tensor(height).cuda()
 width = torch.as_tensor(width).cuda()
 
@@ -55,7 +56,8 @@ class FasterRCNN(nn.Module):
         self.model = net
         self._half = half
 
-    def forward(self, x, height, width):
+    def forward(self, x, hw):
+        height, width = hw[0], hw[1]
         if x.dim() != 3:
             assert x.shape[0] == 1 and x.dim() == 4
             x = x.squeeze(0)
@@ -68,7 +70,7 @@ class FasterRCNN(nn.Module):
 m = FasterRCNN(predictor.model, half=True).half().cuda().eval()
 
 with torch.no_grad():
-    boxes, scores, labels = m(image_byte, height, width)
+    boxes, scores, labels = m(image_byte, hw)
 
 def optimize_graph(onnxfile, onnxfile_optimized=None, providers=None):
     if providers is None:
@@ -89,9 +91,9 @@ if True:
     dynamic_axes = {'image': {2 : 'height', 3: 'width'}}
     dynamic_axes.update({t: {0: 'i'} for t in targets})
     with torch.no_grad():
-        torch.onnx.export(m, (image_byte, height, width), onnxfile,
+        torch.onnx.export(m, (image_byte, hw), onnxfile,
                         verbose=True,
-                        input_names=['image', 'height', 'width'],
+                        input_names=['image', 'hw'],
                         dynamic_axes=dynamic_axes,
                         output_names=targets,
                         opset_version=14)
@@ -104,8 +106,7 @@ sess = rt.InferenceSession(onnxfile_optimized, providers=['CUDAExecutionProvider
 t0 = time.time()
 boxes_ort, scores_ort, labels_ort = sess.run(targets, {
     'image': image_byte.cpu().numpy(),
-    'height': height.cpu().numpy(),
-    'width': width.cpu().numpy(),
+    'hw': hw.cpu().numpy(),
 })
 print(time.time() - t0)
 
@@ -126,6 +127,7 @@ if predictor.input_format == "RGB":
 height2, width2 = image2.shape[:2]
 image2_byte = predictor.aug.get_transform(image2).apply_image(image2).transpose(2, 0, 1)
 image2_byte = torch.as_tensor(image2_byte).unsqueeze(0).cuda()
+hw2 =  torch.as_tensor([height2, width2]).cuda()
 height2 = torch.as_tensor(height2).cuda()
 width2 = torch.as_tensor(width2).cuda()
 
@@ -133,8 +135,7 @@ width2 = torch.as_tensor(width2).cuda()
 t0 = time.time()
 boxes_ort2, scores_ort2, labels_ort2 = sess.run(targets, {
     'image': image2_byte.cpu().numpy(),
-    'height': height2.cpu().numpy(),
-    'width': width2.cpu().numpy(),
+    'hw': hw2.cpu().numpy(),
 })
 print(time.time() - t0)
 instances = Instances((height2, width2))
