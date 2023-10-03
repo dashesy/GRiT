@@ -13,6 +13,8 @@ sys.path.insert(0, 'third_party/CenterNet2/projects/CenterNet2/')
 from centernet.config import add_centernet_config
 from grit.config import add_grit_config
 
+half = False
+
 cfg = get_cfg()
 add_centernet_config(cfg)
 add_grit_config(cfg)
@@ -29,6 +31,8 @@ cfg.MODEL.TEST_TASK = "ObjectDet"
 cfg.MODEL.BEAM_SIZE = 1
 cfg.MODEL.ROI_HEADS.SOFT_NMS_ENABLED = False
 cfg.USE_ACT_CHECKPOINT = False
+if not half:
+    cfg.MODEL.DEVICE = "cpu"
 cfg.freeze()
 
 predictor = DefaultPredictor(cfg)
@@ -41,10 +45,16 @@ if predictor.input_format == "RGB":
     image = image[:, :, ::-1]
 height, width = image.shape[:2]
 image_byte = predictor.aug.get_transform(image).apply_image(image).transpose(2, 0, 1)
-image_byte = torch.as_tensor(image_byte).unsqueeze(0).cuda()
-hw = torch.as_tensor([height, width]).cuda()
-height = torch.as_tensor(height).cuda()
-width = torch.as_tensor(width).cuda()
+image_byte = torch.as_tensor(image_byte).unsqueeze(0)
+hw = torch.as_tensor([height, width])
+height = torch.as_tensor(height)
+width = torch.as_tensor(width)
+
+if half:
+    image_byte = image_byte.cuda()
+    hw = hw.cuda()
+    height = height.cuda()
+    width = width.cuda()
 
 # predictions = predictor(image)
 
@@ -66,8 +76,12 @@ class FasterRCNN(nn.Module):
         instances = predictions['instances']
         return instances.pred_boxes.tensor.floor().int(), instances.scores.float(), instances.pred_classes.int()
 
-# m = FasterRCNN(predictor.model).cuda().eval()
-m = FasterRCNN(predictor.model, half=True).half().cuda().eval()
+m = FasterRCNN(predictor.model, half=half)
+
+if half:
+    m = m.half().cuda().eval()
+else:
+    m = m.eval()
 
 with torch.no_grad():
     boxes, scores, labels = m(image_byte, hw)
@@ -84,7 +98,7 @@ def optimize_graph(onnxfile, onnxfile_optimized=None, providers=None):
     _ = rt.InferenceSession(onnxfile, sess_options, providers=[providers])
     return onnxfile_optimized
 
-onnxfile = "/repos/output/grit.onnx"
+onnxfile = "/mnt/e/output/grit.onnx"
 onnxfile_optimized =  onnxfile[:-5] + "_optimized.onnx"
 targets = ["bbox", "scores", "labels"]
 if True:
@@ -98,11 +112,9 @@ if True:
                         output_names=targets,
                         opset_version=14)
 
-    optimize_graph(onnxfile)
-    # optimize_graph(onnxfile, providers = 'CPUExecutionProvider')
+    optimize_graph(onnxfile, providers = 'CPUExecutionProvider' if not half else None)
 
-# sess = rt.InferenceSession(onnxfile, providers=['CPUExecutionProvider'])
-sess = rt.InferenceSession(onnxfile_optimized, providers=['CUDAExecutionProvider'])
+sess = rt.InferenceSession(onnxfile_optimized, providers=['CUDAExecutionProvider' if half else 'CPUExecutionProvider'])
 t0 = time.time()
 boxes_ort, scores_ort, labels_ort = sess.run(targets, {
     'image': image_byte.cpu().numpy(),
@@ -126,10 +138,15 @@ if predictor.input_format == "RGB":
     image2 = image2[:, :, ::-1]
 height2, width2 = image2.shape[:2]
 image2_byte = predictor.aug.get_transform(image2).apply_image(image2).transpose(2, 0, 1)
-image2_byte = torch.as_tensor(image2_byte).unsqueeze(0).cuda()
-hw2 =  torch.as_tensor([height2, width2]).cuda()
-height2 = torch.as_tensor(height2).cuda()
-width2 = torch.as_tensor(width2).cuda()
+image2_byte = torch.as_tensor(image2_byte).unsqueeze(0)
+hw2 =  torch.as_tensor([height2, width2])
+height2 = torch.as_tensor(height2)
+width2 = torch.as_tensor(width2)
+if half:
+    image2_byte = image2_byte.cuda()
+    hw2 =  hw2.cuda()
+    height2 = height2.cuda()
+    width2 = width2.cuda()
 
 # try with h > w
 t0 = time.time()
